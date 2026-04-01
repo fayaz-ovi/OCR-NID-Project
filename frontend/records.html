@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Records — NID OCR System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="records">
+
+<div id="offline-banner" class="offline-banner" role="alert">
+  📡 You appear to be offline — please check your connection.
+</div>
+
+<div class="app-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <span class="brand-dot"></span>
+      <h1>NID OCR System</h1>
+      <div class="brand-sub">জাতীয় পরিচয়পত্র</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="index.html"   class="nav-link" data-nav="upload">
+        <span class="nav-icon">⬆️</span> Upload NID
+      </a>
+      <a href="records.html" class="nav-link" data-nav="records">
+        <span class="nav-icon">🗂️</span> Records
+      </a>
+      <a href="records.html?export=1" class="nav-link" data-nav="export"
+         id="export-nav-link">
+        <span class="nav-icon">📥</span> Export
+      </a>
+      <a href="stats.html"   class="nav-link" data-nav="stats">
+        <span class="nav-icon">📊</span> Statistics
+      </a>
+    </nav>
+    <div class="sidebar-footer">NID OCR v1.0 · Django + EasyOCR</div>
+  </aside>
+
+  <!-- ── Main area ── -->
+  <div class="main-area">
+
+    <header class="topbar">
+      <h2 class="topbar-title">NID Records</h2>
+      <div class="topbar-actions">
+        <button id="export-btn" class="btn btn-outline btn-sm">📥 Export Excel</button>
+        <a href="index.html" class="btn btn-green btn-sm">⬆️ Upload New</a>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <!-- Filter row -->
+      <div class="filter-row">
+        <div class="search-bar">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" class="form-control"
+                 placeholder="Search name or NID number…" autocomplete="off">
+        </div>
+
+        <select id="status-filter" class="form-control" style="width:auto">
+          <option value="">All Statuses</option>
+          <option value="SUCCESS">Success</option>
+          <option value="FAILED">Failed</option>
+          <option value="PENDING">Pending</option>
+          <option value="PROCESSING">Processing</option>
+        </select>
+
+        <select id="blood-filter" class="form-control" style="width:auto">
+          <option value="">All Blood Groups</option>
+          <option value="A+">A+</option>
+          <option value="A-">A−</option>
+          <option value="B+">B+</option>
+          <option value="B-">B−</option>
+          <option value="AB+">AB+</option>
+          <option value="AB-">AB−</option>
+          <option value="O+">O+</option>
+          <option value="O-">O−</option>
+        </select>
+
+        <input type="date" id="date-from" class="form-control" style="width:auto"
+               title="Records from date">
+        <input type="date" id="date-to"   class="form-control" style="width:auto"
+               title="Records to date">
+
+        <button id="clear-filters-btn" class="btn btn-outline btn-sm">Clear</button>
+      </div>
+
+      <!-- Records table card -->
+      <div class="card">
+
+        <!-- Summary bar -->
+        <div class="card-header">
+          <span id="summary-text" class="text-sm text-muted">Loading…</span>
+          <span id="selected-count" class="text-sm text-muted hidden"></span>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+          <table id="records-table" aria-label="NID Records">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th class="sortable" data-field="name_english">
+                  Name (EN) <span class="sort-arrow" data-field="name_english">↕</span>
+                </th>
+                <th>Name (BN)</th>
+                <th class="sortable" data-field="nid_number">
+                  NID Number <span class="sort-arrow" data-field="nid_number">↕</span>
+                </th>
+                <th>Blood</th>
+                <th>Confidence</th>
+                <th>Status</th>
+                <th class="sortable" data-field="created_at">
+                  Date <span class="sort-arrow" data-field="created_at">↕</span>
+                </th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="table-body">
+              <!-- skeleton rows on first load -->
+              <tr class="skeleton-row">
+                <td><div class="skeleton skeleton-cell" style="width:30px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:140px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:120px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:100px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:40px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:60px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:70px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:90px"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:50px"></div></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Empty state (inside card) -->
+          <div id="empty-state" class="empty-state hidden">
+            <div class="empty-icon">🗂️</div>
+            <div class="empty-title" id="empty-title">No records yet</div>
+            <div class="empty-desc"  id="empty-desc">Upload your first NID card to get started.</div>
+            <a href="index.html" class="btn btn-green mt-4" style="margin-top:1rem">⬆️ Upload NID Card</a>
+          </div>
+
+        </div><!-- /table-wrapper -->
+
+        <!-- Pagination -->
+        <div id="pagination-container" class="pagination"></div>
+
+      </div><!-- /card -->
+
+    </main>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container" class="toast-container"></div>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  /* ── State ── */
+  let state = {
+    page: 1, pageSize: 20,
+    search: '', status: '', bloodGroup: '',
+    dateFrom: '', dateTo: '',
+    ordering: '-created_at',
+    totalPages: 1,
+  };
+
+  /* ── Refs ── */
+  const searchInput  = document.getElementById('search-input');
+  const statusFilter = document.getElementById('status-filter');
+  const bloodFilter  = document.getElementById('blood-filter');
+  const dateFrom     = document.getElementById('date-from');
+  const dateTo       = document.getElementById('date-to');
+  const clearBtn     = document.getElementById('clear-filters-btn');
+  const tableBody    = document.getElementById('table-body');
+  const emptyState   = document.getElementById('empty-state');
+  const summary      = document.getElementById('summary-text');
+  const pagination   = document.getElementById('pagination-container');
+  const exportBtn    = document.getElementById('export-btn');
+
+  /* ── Load records ── */
+  async function loadRecords() {
+    renderSkeletons();
+    emptyState.classList.add('hidden');
+    summary.textContent = 'Loading…';
+
+    try {
+      const params = {
+        page: state.page, page_size: state.pageSize,
+        search: state.search, status: state.status,
+        blood_group: state.bloodGroup,
+        date_from: state.dateFrom, date_to: state.dateTo,
+        ordering: state.ordering,
+      };
+
+      const res = await api.getRecords(params);
+      state.totalPages = res.total_pages || 1;
+
+      summary.textContent =
+        `${res.count ?? 0} records · ${res.summary?.successful ?? 0} successful · ${res.summary?.failed ?? 0} failed`;
+
+      if (!res.results?.length) {
+        tableBody.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        const hasFilter = state.search || state.status || state.bloodGroup;
+        document.getElementById('empty-title').textContent =
+          hasFilter ? `No records matching your filters` : 'No records yet';
+        document.getElementById('empty-desc').textContent =
+          hasFilter ? `Try clearing the search or filters.` : 'Upload your first NID card to get started.';
+        pagination.innerHTML = '';
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      renderTable(res.results);
+      renderPagination(res.current_page, res.total_pages, res.count);
+
+    } catch (err) {
+      tableBody.innerHTML = `<tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--clr-muted)">${escHtml(apiErrorMsg(err))}</td></tr>`;
+      showToast(apiErrorMsg(err), 'error');
+    }
+  }
+
+  /* ── Skeleton rows ── */
+  function renderSkeletons(n = 6) {
+    tableBody.innerHTML = Array.from({length: n}, () => `
+      <tr class="skeleton-row">
+        ${Array.from({length: 9}, (_,i) => `<td><div class="skeleton skeleton-cell" style="width:${[30,140,120,100,40,60,70,90,50][i]}px;height:14px"></div></td>`).join('')}
+      </tr>
+    `).join('');
+  }
+
+  /* ── Render table rows ── */
+  function renderTable(records) {
+    tableBody.innerHTML = records.map(r => {
+      const statusCls = statusBadgeClass(r.processing_status);
+      const bgCls     = r.blood_group ? bloodGroupClass(r.blood_group) : '';
+      const isFailed  = r.processing_status === 'FAILED';
+      return `
+        <tr class="${isFailed ? 'failed-row' : ''}" data-id="${r.id}" title="Click to view details">
+          <td class="td-muted">#${r.id}</td>
+          <td>${r.name_english ? `<span class="text-truncate" title="${escHtml(r.name_english)}">${escHtml(truncate(r.name_english, 24))}</span>` : '<span class="td-muted">—</span>'}</td>
+          <td>${r.name_bangla  ? `<span class="text-truncate" title="${escHtml(r.name_bangla)}">${escHtml(truncate(r.name_bangla, 20))}</span>` : '<span class="td-muted">—</span>'}</td>
+          <td style="font-family:monospace">${r.nid_number ? escHtml(r.nid_number) : '<span class="td-muted">—</span>'}</td>
+          <td>${r.blood_group ? `<span class="badge badge-blood ${bgCls}">${escHtml(r.blood_group)}</span>` : '<span class="td-muted">—</span>'}</td>
+          <td class="td-muted">${r.ocr_confidence != null ? formatConfidence(r.ocr_confidence) : '—'}</td>
+          <td><span class="badge ${statusCls}">${escHtml(r.processing_status)}</span></td>
+          <td class="td-muted" style="white-space:nowrap">${formatDate(r.created_at).split(',')[0]}</td>
+          <td>
+            <button class="btn btn-outline btn-sm view-btn" data-id="${r.id}" title="View details">👁</button>
+            <button class="btn btn-outline btn-sm delete-btn" data-id="${r.id}" title="Delete" style="color:var(--clr-error)">🗑</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    /* Row-level click → open modal */
+    tableBody.querySelectorAll('tr[data-id]').forEach(tr => {
+      tr.addEventListener('click', (e) => {
+        if (e.target.closest('.view-btn, .delete-btn')) return;
+        openDetail(parseInt(tr.dataset.id));
+      });
+    });
+
+    tableBody.querySelectorAll('.view-btn').forEach(btn =>
+      btn.addEventListener('click', () => openDetail(parseInt(btn.dataset.id)))
+    );
+
+    tableBody.querySelectorAll('.delete-btn').forEach(btn =>
+      btn.addEventListener('click', () => confirmDelete(parseInt(btn.dataset.id)))
+    );
+  }
+
+  /* ── Pagination ── */
+  function renderPagination(current, total, count) {
+    if (total <= 1) { pagination.innerHTML = ''; return; }
+    const from = (current - 1) * state.pageSize + 1;
+    const to   = Math.min(current * state.pageSize, count);
+
+    let pages = [];
+    if (total <= 7) {
+      pages = Array.from({length: total}, (_, i) => i + 1);
+    } else {
+      pages = [1];
+      if (current > 3) pages.push('…');
+      for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p);
+      if (current < total - 2) pages.push('…');
+      pages.push(total);
+    }
+
+    pagination.innerHTML = `
+      <button class="page-btn" id="pg-prev" ${current <= 1 ? 'disabled' : ''}>← Prev</button>
+      ${pages.map(p => p === '…'
+        ? `<span class="page-info">…</span>`
+        : `<button class="page-btn ${p === current ? 'active' : ''}" data-page="${p}">${p}</button>`
+      ).join('')}
+      <button class="page-btn" id="pg-next" ${current >= total ? 'disabled' : ''}>Next →</button>
+      <span class="page-info">${from}–${to} of ${count}</span>
+    `;
+
+    pagination.querySelector('#pg-prev')?.addEventListener('click', () => goPage(current - 1));
+    pagination.querySelector('#pg-next')?.addEventListener('click', () => goPage(current + 1));
+    pagination.querySelectorAll('[data-page]').forEach(btn =>
+      btn.addEventListener('click', () => goPage(parseInt(btn.dataset.page)))
+    );
+  }
+
+  function goPage(p) {
+    state.page = Math.max(1, Math.min(p, state.totalPages));
+    loadRecords();
+  }
+
+  /* ── Sorting ── */
+  document.querySelectorAll('thead th.sortable').forEach(th => {
+    th.addEventListener('click', () => {
+      const field = th.dataset.field;
+      if (!field) return;
+      state.ordering = state.ordering === field ? `-${field}` : field;
+      state.page = 1;
+      document.querySelectorAll('.sort-arrow').forEach(a => {
+        a.classList.remove('active');
+        a.textContent = '↕';
+      });
+      const arrow = th.querySelector('.sort-arrow');
+      if (arrow) {
+        arrow.classList.add('active');
+        arrow.textContent = state.ordering.startsWith('-') ? '↓' : '↑';
+      }
+      loadRecords();
+    });
+  });
+
+  /* ── Filters ── */
+  const debouncedSearch = debounce(() => {
+    state.search = searchInput.value.trim();
+    state.page = 1;
+    loadRecords();
+  }, 300);
+
+  searchInput.addEventListener('input', debouncedSearch);
+
+  statusFilter.addEventListener('change', () => { state.status = statusFilter.value; state.page = 1; loadRecords(); });
+  bloodFilter .addEventListener('change', () => { state.bloodGroup = bloodFilter.value; state.page = 1; loadRecords(); });
+  dateFrom    .addEventListener('change', () => { state.dateFrom = dateFrom.value; state.page = 1; loadRecords(); });
+  dateTo      .addEventListener('change', () => { state.dateTo = dateTo.value; state.page = 1; loadRecords(); });
+
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    statusFilter.value = '';
+    bloodFilter.value  = '';
+    dateFrom.value = '';
+    dateTo.value   = '';
+    state = { ...state, search: '', status: '', bloodGroup: '', dateFrom: '', dateTo: '', page: 1 };
+    loadRecords();
+  });
+
+  /* ── Export ── */
+  exportBtn.addEventListener('click', async () => {
+    exportBtn.disabled = true;
+    exportBtn.textContent = '⏳ Exporting…';
+    try {
+      const blob = await api.exportRecords({
+        search: state.search, status: state.status,
+        blood_group: state.bloodGroup, date_from: state.dateFrom,
+        date_to: state.dateTo, ordering: state.ordering,
+      });
+      const ts = new Date().toISOString().slice(0,10);
+      downloadBlob(blob, `nid_records_${ts}.xlsx`);
+      showToast('Excel file downloaded.', 'success');
+    } catch (err) {
+      showToast(apiErrorMsg(err), 'error');
+    } finally {
+      exportBtn.disabled = false;
+      exportBtn.textContent = '📥 Export Excel';
+    }
+  });
+
+  /* ── Detail modal ── */
+  async function openDetail(id) {
+    showModal('Loading…', '<div class="loading-state"><div class="spinner"></div></div>');
+    try {
+      const res = await api.getRecord(id);
+      const r   = res.data || res;
+      renderDetailModal(r);
+    } catch (err) {
+      closeModal();
+      showToast(apiErrorMsg(err), 'error');
+    }
+  }
+
+  function renderDetailModal(r, editMode = false) {
+    const fields = [
+      ['name_english',       'Name (English)',     false],
+      ['name_bangla',        'Name (Bangla)',       false],
+      ['nid_number',         'NID Number',          false],
+      ['date_of_birth',      'Date of Birth',       false],
+      ['blood_group',        'Blood Group',         false],
+      ['father_name_bangla', 'Father Name (Bangla)',false],
+      ['mother_name_bangla', 'Mother Name (Bangla)',false],
+      ['address_bangla',     'Address (Bangla)',    true ],
+    ];
+
+    const bodyHtml = `
+      ${r.image_url ? `<img src="${escHtml(r.image_url)}" alt="NID" style="width:100%;border-radius:var(--r);margin-bottom:1rem;max-height:200px;object-fit:cover">` : ''}
+
+      <div class="record-detail-grid" id="detail-grid">
+        ${fields.map(([key, label, full]) => `
+          <div class="record-field ${full ? 'full' : ''}">
+            <label>${escHtml(label)}</label>
+            ${editMode
+              ? `<input type="text" id="edit-${key}" value="${escHtml(r[key] || '')}" class="form-control">`
+              : `<div class="field-val ${!r[key] ? 'empty' : ''}">${r[key] ? escHtml(r[key]) : '—'}</div>`
+            }
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="margin-top:1rem;display:flex;gap:0.75rem;flex-wrap:wrap">
+        <div class="record-field" style="flex:1;min-width:160px">
+          <label>Status</label>
+          <div class="field-val">
+            <span class="badge ${statusBadgeClass(r.processing_status)}">${escHtml(r.processing_status)}</span>
+          </div>
+        </div>
+        <div class="record-field" style="flex:1;min-width:160px">
+          <label>Confidence</label>
+          <div class="field-val">${formatConfidence(r.ocr_confidence)}</div>
+        </div>
+        <div class="record-field" style="flex:1;min-width:160px">
+          <label>Created</label>
+          <div class="field-val">${formatDate(r.created_at)}</div>
+        </div>
+      </div>
+
+      ${r.error_message ? `<div class="alert alert-error mt-3"><span class="alert-icon">⚠️</span><div>${escHtml(r.error_message)}</div></div>` : ''}
+    `;
+
+    const footerHtml = editMode
+      ? `<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+         <button class="btn btn-green" id="save-edit-btn">Save Changes</button>`
+      : `<button class="btn btn-danger btn-sm" id="modal-delete-btn" data-id="${r.id}">🗑 Delete</button>
+         <button class="btn btn-outline" onclick="closeModal()">Close</button>
+         <button class="btn btn-primary" id="modal-edit-btn">✏️ Edit</button>`;
+
+    showModal(`Record #${r.id} — ${r.name_english || r.name_bangla || 'Unknown'}`, bodyHtml, footerHtml);
+
+    if (!editMode) {
+      document.getElementById('modal-edit-btn')?.addEventListener('click', () => renderDetailModal(r, true));
+      document.getElementById('modal-delete-btn')?.addEventListener('click', () => { closeModal(); confirmDelete(r.id); });
+    } else {
+      document.getElementById('save-edit-btn')?.addEventListener('click', async () => {
+        const data = {};
+        ['name_english','name_bangla','nid_number','date_of_birth','blood_group',
+         'father_name_bangla','mother_name_bangla','address_bangla'].forEach(k => {
+          const el = document.getElementById(`edit-${k}`);
+          if (el) data[k] = el.value;
+        });
+        try {
+          await api.updateRecord(r.id, data);
+          closeModal();
+          showToast('Record updated successfully.', 'success');
+          loadRecords();
+        } catch (err) {
+          showToast(apiErrorMsg(err), 'error');
+        }
+      });
+    }
+  }
+
+  /* ── Delete ── */
+  function confirmDelete(id) {
+    showModal(
+      'Confirm Delete',
+      `<div class="alert alert-warning"><span class="alert-icon">⚠️</span>
+       <div>Are you sure you want to delete record <strong>#${id}</strong>?<br>
+       This action cannot be undone.</div></div>`,
+      `<button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+       <button class="btn btn-danger" id="confirm-del-btn">Delete</button>`
+    );
+    document.getElementById('confirm-del-btn').addEventListener('click', async () => {
+      try {
+        await api.deleteRecord(id);
+        closeModal();
+        showToast(`Record #${id} deleted.`, 'success');
+        loadRecords();
+      } catch (err) {
+        closeModal();
+        showToast(apiErrorMsg(err), 'error');
+      }
+    });
+  }
+
+  /* ── Handle ?export=1 query param ── */
+  if (new URLSearchParams(location.search).get('export') === '1') {
+    document.addEventListener('DOMContentLoaded', () => exportBtn.click());
+  }
+
+  /* ── Initial load ── */
+  loadRecords();
+
+})();
+</script>
+
+</body>
+</html>

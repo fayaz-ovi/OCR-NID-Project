@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statistics — NID OCR System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Stats-page-specific micro-styles */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (max-width: 768px) { .charts-grid { grid-template-columns: 1fr; } }
+
+    .donut-center-text {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .donut-center-text strong { font-size: var(--fs-xl); color: var(--clr-navy); }
+    .donut-center-text small  { font-size: var(--fs-xs); color: var(--clr-muted); display:block; }
+
+    .recent-table th { padding: 0.7rem 1rem; }
+    .recent-table td { padding: 0.8rem 1rem; }
+
+    /* Stat card skeleton */
+    .stat-skeleton .stat-value { height: 40px; width: 80px; }
+    .stat-skeleton .stat-label { height: 12px; width: 100px; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body data-page="stats">
+
+<div id="offline-banner" class="offline-banner" role="alert">
+  📡 You appear to be offline — please check your connection.
+</div>
+
+<div class="app-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <span class="brand-dot"></span>
+      <h1>NID OCR System</h1>
+      <div class="brand-sub">জাতীয় পরিচয়পত্র</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="index.html"   class="nav-link" data-nav="upload">
+        <span class="nav-icon">⬆️</span> Upload NID
+      </a>
+      <a href="records.html" class="nav-link" data-nav="records">
+        <span class="nav-icon">🗂️</span> Records
+      </a>
+      <a href="records.html?export=1" class="nav-link" data-nav="export">
+        <span class="nav-icon">📥</span> Export
+      </a>
+      <a href="stats.html" class="nav-link" data-nav="stats">
+        <span class="nav-icon">📊</span> Statistics
+      </a>
+    </nav>
+    <div class="sidebar-footer">NID OCR v1.0 · Django + EasyOCR</div>
+  </aside>
+
+  <!-- ── Main area ── -->
+  <div class="main-area">
+
+    <header class="topbar">
+      <h2 class="topbar-title">Dashboard Statistics</h2>
+      <div class="topbar-actions">
+        <button id="refresh-btn" class="btn btn-outline btn-sm">🔄 Refresh</button>
+        <a href="index.html" class="btn btn-green btn-sm">⬆️ Upload New</a>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <div class="page-header">
+        <h2>Dashboard</h2>
+        <p id="last-updated" class="text-sm text-muted">Loading…</p>
+      </div>
+
+      <!-- ── 4 Stat Cards ── -->
+      <div class="stats-grid" id="stats-grid">
+        <!-- Filled by JS -->
+        <div class="stat-card stat-skeleton">
+          <div class="skeleton stat-label" style="height:12px;width:110px;margin-bottom:.6rem"></div>
+          <div class="skeleton stat-value" style="height:40px;width:80px"></div>
+        </div>
+        <div class="stat-card stat-skeleton">
+          <div class="skeleton" style="height:12px;width:80px;margin-bottom:.6rem"></div>
+          <div class="skeleton" style="height:40px;width:80px"></div>
+        </div>
+        <div class="stat-card stat-skeleton">
+          <div class="skeleton" style="height:12px;width:120px;margin-bottom:.6rem"></div>
+          <div class="skeleton" style="height:40px;width:80px"></div>
+        </div>
+        <div class="stat-card stat-skeleton">
+          <div class="skeleton" style="height:12px;width:90px;margin-bottom:.6rem"></div>
+          <div class="skeleton" style="height:40px;width:80px"></div>
+        </div>
+      </div>
+
+      <!-- ── Charts row ── -->
+      <div class="charts-grid">
+
+        <!-- Blood Group Distribution -->
+        <div class="card">
+          <div class="card-header">
+            <h3>🩸 Blood Group Distribution</h3>
+          </div>
+          <div class="card-body">
+            <div id="blood-chart">
+              <!-- skeleton bars -->
+              <div class="chart-row">
+                <div class="skeleton" style="width:40px;height:16px;border-radius:4px"></div>
+                <div class="chart-track" style="background:transparent">
+                  <div class="skeleton" style="height:28px;width:70%;border-radius:var(--r-full)"></div>
+                </div>
+                <div class="skeleton" style="width:24px;height:16px;border-radius:4px"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Processing Status Donut -->
+        <div class="card">
+          <div class="card-header">
+            <h3>⚙️ Processing Status</h3>
+          </div>
+          <div class="card-body">
+            <div class="donut-wrapper" id="donut-wrapper">
+              <div style="position:relative;flex-shrink:0">
+                <div class="donut" id="donut"></div>
+                <div class="donut-center-text">
+                  <strong id="donut-center-val">—</strong>
+                  <small>Total</small>
+                </div>
+              </div>
+              <div class="donut-legend" id="donut-legend">
+                <!-- filled by JS -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /charts-grid -->
+
+      <!-- ── Recent uploads ── -->
+      <div class="card">
+        <div class="card-header">
+          <h3>🕑 Recent Uploads (last 10)</h3>
+          <a href="records.html" class="btn btn-outline btn-sm">View All →</a>
+        </div>
+        <div class="table-wrapper">
+          <table class="recent-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Name (English)</th>
+                <th>NID Number</th>
+                <th>Blood</th>
+                <th>Confidence</th>
+                <th>Status</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody id="recent-tbody">
+              <tr class="skeleton-row">
+                <td colspan="7">
+                  <div class="skeleton" style="height:14px;width:100%;border-radius:4px"></div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container" class="toast-container"></div>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  const BLOOD_COLORS = {
+    'A+': '#c0392b', 'A-': '#e74c3c',
+    'B+': '#922b21', 'B-': '#cb4335',
+    'AB+': '#6e2723','AB-': '#922b21',
+    'O+': '#b03a2e', 'O-': '#cd6155',
+  };
+
+  function colorForBg(bg) {
+    if (!bg) return '#94a3b8';
+    return BLOOD_COLORS[bg] || (bg.startsWith('AB') ? '#6e2723' : '#c0392b');
+  }
+
+  /* ── Load and render everything ── */
+  async function loadStats() {
+    try {
+      const s = await api.getStats();
+      renderStatCards(s);
+      renderDonut(s);
+      renderBloodChart(s.blood_group_distribution || {});
+      document.getElementById('last-updated').textContent =
+        `Last updated: ${formatDate(new Date().toISOString())}`;
+    } catch (err) {
+      showToast(apiErrorMsg(err), 'error');
+      document.getElementById('last-updated').textContent = 'Failed to load statistics.';
+    }
+
+    /* Load recent records separately */
+    try {
+      const r = await api.getRecords({ page: 1, page_size: 10, ordering: '-created_at' });
+      renderRecentTable(r.results || []);
+    } catch {
+      document.getElementById('recent-tbody').innerHTML =
+        '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--clr-muted)">Could not load recent records.</td></tr>';
+    }
+  }
+
+  /* ── Stat Cards ── */
+  function renderStatCards(s) {
+    const cards = [
+      {
+        icon: '🗂️',
+        label: 'Total Records',
+        value: (s.total_records ?? 0).toLocaleString(),
+        meta: `${s.records_today ?? 0} uploaded today`,
+      },
+      {
+        icon: '✅',
+        label: 'Success Rate',
+        value: (s.success_rate ?? 0).toFixed(1) + '%',
+        meta: `${s.successful_extractions ?? 0} successful · ${s.failed_extractions ?? 0} failed`,
+      },
+      {
+        icon: '🎯',
+        label: 'Avg. Confidence',
+        value: formatConfidence(s.average_confidence),
+        meta: `Average OCR accuracy score`,
+      },
+      {
+        icon: '📅',
+        label: 'This Week',
+        value: (s.records_this_week ?? 0).toLocaleString(),
+        meta: `${s.records_today ?? 0} today`,
+      },
+    ];
+
+    document.getElementById('stats-grid').innerHTML = cards.map(c => `
+      <div class="stat-card">
+        <span class="stat-icon">${c.icon}</span>
+        <div class="stat-label">${escHtml(c.label)}</div>
+        <div class="stat-value">${escHtml(c.value)}</div>
+        <div class="stat-meta">${escHtml(c.meta)}</div>
+      </div>
+    `).join('');
+  }
+
+  /* ── Blood Group Bar Chart (pure CSS) ── */
+  function renderBloodChart(dist) {
+    const entries  = Object.entries(dist).sort((a, b) => b[1] - a[1]);
+    const maxCount = entries.length ? entries[0][1] : 1;
+    const chart    = document.getElementById('blood-chart');
+
+    if (!entries.length) {
+      chart.innerHTML = '<p class="text-sm text-muted" style="text-align:center;padding:2rem">No blood group data available.</p>';
+      return;
+    }
+
+    chart.innerHTML = entries.map(([bg, count]) => {
+      const pct = Math.round((count / maxCount) * 100);
+      const color= colorForBg(bg);
+      return `
+        <div class="chart-row">
+          <span class="chart-label">
+            <span class="badge badge-blood" style="background:${color};min-width:42px;justify-content:center">${escHtml(bg)}</span>
+          </span>
+          <div class="chart-track">
+            <div class="chart-fill" style="width:${pct}%;background:${color}" role="progressbar"
+                 aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100">
+              ${count > 3 ? count : ''}
+            </div>
+          </div>
+          <span class="chart-count">${count}</span>
+        </div>
+      `;
+    }).join('');
+
+    /* Animate bars in after render */
+    requestAnimationFrame(() => {
+      chart.querySelectorAll('.chart-fill').forEach(fill => {
+        const target = fill.style.width;
+        fill.style.width = '0%';
+        requestAnimationFrame(() => { fill.style.width = target; });
+      });
+    });
+  }
+
+  /* ── Donut Chart (CSS conic-gradient) ── */
+  function renderDonut(s) {
+    const total   = s.total_records || 0;
+    const success = s.successful_extractions || 0;
+    const failed  = s.failed_extractions || 0;
+    const pending = total - success - failed;
+
+    const donut = document.getElementById('donut');
+    document.getElementById('donut-center-val').textContent = total.toLocaleString();
+
+    if (total === 0) {
+      donut.style.background = 'var(--clr-bg)';
+    } else {
+      const sDeg = (success / total) * 360;
+      const fDeg = (failed  / total) * 360;
+      donut.style.setProperty('--deg-success', sDeg + 'deg');
+      donut.style.setProperty('--deg-failed',  fDeg + 'deg');
+    }
+
+    document.getElementById('donut-legend').innerHTML = [
+      { label: 'Success',    count: success, color: 'var(--clr-success)' },
+      { label: 'Failed',     count: failed,  color: 'var(--clr-error)' },
+      { label: 'Pending',    count: pending, color: 'var(--clr-warning)' },
+    ].map(item => `
+      <div class="donut-legend-item">
+        <span class="legend-dot" style="background:${item.color}"></span>
+        <span class="text-sm">${item.label}</span>
+        <span class="text-sm font-bold" style="margin-left:auto">${item.count.toLocaleString()}</span>
+      </div>
+    `).join('');
+  }
+
+  /* ── Recent Records Table ── */
+  function renderRecentTable(records) {
+    const tbody = document.getElementById('recent-tbody');
+    if (!records.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--clr-muted)">No records yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = records.map(r => {
+      const bg = r.blood_group;
+      return `
+        <tr>
+          <td class="td-muted">#${r.id}</td>
+          <td>${r.name_english ? `<span class="text-truncate" style="display:inline-block;max-width:160px" title="${escHtml(r.name_english)}">${escHtml(truncate(r.name_english, 22))}</span>` : '<span class="td-muted">—</span>'}</td>
+          <td style="font-family:monospace">${r.nid_number ? escHtml(r.nid_number) : '<span class="td-muted">—</span>'}</td>
+          <td>${bg ? `<span class="badge badge-blood ${bloodGroupClass(bg)}">${escHtml(bg)}</span>` : '<span class="td-muted">—</span>'}</td>
+          <td class="td-muted">${r.ocr_confidence != null ? formatConfidence(r.ocr_confidence) : '—'}</td>
+          <td><span class="badge ${statusBadgeClass(r.processing_status)}">${escHtml(r.processing_status)}</span></td>
+          <td class="td-muted" style="white-space:nowrap">${formatDate(r.created_at).split(',')[0]}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  /* ── Refresh ── */
+  document.getElementById('refresh-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Refreshing…';
+    await loadStats();
+    btn.disabled = false;
+    btn.textContent = '🔄 Refresh';
+    showToast('Statistics refreshed.', 'success');
+  });
+
+  /* ── Initial load ── */
+  loadStats();
+
+})();
+</script>
+
+</body>
+</html>

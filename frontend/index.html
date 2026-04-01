@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload — NID OCR System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="upload">
+
+<!-- Offline banner -->
+<div id="offline-banner" class="offline-banner" role="alert">
+  📡 You appear to be offline — please check your connection.
+</div>
+
+<div class="app-layout">
+
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <aside class="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <span class="brand-dot"></span>
+      <h1>NID OCR System</h1>
+      <div class="brand-sub">জাতীয় পরিচয়পত্র</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main Menu</div>
+      <a href="index.html"   class="nav-link" data-nav="upload">
+        <span class="nav-icon">⬆️</span> Upload NID
+      </a>
+      <a href="records.html" class="nav-link" data-nav="records">
+        <span class="nav-icon">🗂️</span> Records
+      </a>
+      <a href="records.html?export=1" class="nav-link" data-nav="export">
+        <span class="nav-icon">📥</span> Export
+      </a>
+      <a href="stats.html"   class="nav-link" data-nav="stats">
+        <span class="nav-icon">📊</span> Statistics
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      NID OCR v1.0 · Django + EasyOCR
+    </div>
+  </aside>
+
+  <!-- ── Main area ────────────────────────────────────────────── -->
+  <div class="main-area">
+
+    <header class="topbar">
+      <h2 class="topbar-title">Upload NID Card</h2>
+      <div class="topbar-actions">
+        <a href="records.html" class="btn btn-outline btn-sm">View Records</a>
+      </div>
+    </header>
+
+    <main class="page-content">
+
+      <div class="page-header">
+        <h2>Process NID Card</h2>
+        <p>Upload a clear photo of a Bangladesh National ID card to extract structured information.</p>
+      </div>
+
+      <!-- Upload card -->
+      <div class="card" id="upload-card">
+        <div class="card-body">
+
+          <!-- Drop zone -->
+          <div id="upload-zone" class="upload-zone" tabindex="0"
+               role="button" aria-label="Upload NID card image">
+            <span class="upload-icon">📷</span>
+            <div class="upload-title">Click to browse or drag your NID card photo here</div>
+            <div class="upload-hint">
+              Take a well-lit, straight photo of the front of the card.
+            </div>
+            <div class="format-badges">
+              <span class="format-badge">JPG</span>
+              <span class="format-badge">JPEG</span>
+              <span class="format-badge">PNG</span>
+              <span class="format-badge">WEBP</span>
+              <span class="format-badge" style="background:var(--clr-muted)">Max 10 MB</span>
+            </div>
+          </div>
+          <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.webp" hidden aria-hidden="true">
+
+          <!-- File preview (hidden until file chosen) -->
+          <div id="preview-container" class="file-preview hidden">
+            <img id="preview-thumb" class="file-preview-thumb" src="" alt="Preview">
+            <div class="file-preview-info">
+              <div class="file-preview-name" id="file-name-display">—</div>
+              <div class="file-preview-size" id="file-size-display">—</div>
+            </div>
+            <button id="remove-file-btn" class="btn-icon-only" title="Remove file" aria-label="Remove selected file">✕</button>
+          </div>
+
+          <!-- Inline error -->
+          <div id="upload-inline-error" class="inline-error hidden" role="alert">
+            <span>⚠</span><span id="upload-error-msg"></span>
+          </div>
+
+          <!-- Process button -->
+          <div class="mt-4 flex gap-3">
+            <button id="process-btn" class="btn btn-green btn-lg" disabled>
+              <span id="btn-icon">⚙️</span>
+              <span id="btn-text">Process NID Card</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Loading state -->
+      <div id="loading-state" class="card hidden" style="margin-top:1.25rem">
+        <div class="card-body">
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Extracting text from your NID card…</p>
+            <p class="text-sm text-muted">This may take up to 30 seconds on the first run.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results section (hidden until OCR done) -->
+      <div id="results-section" class="hidden" style="margin-top:1.5rem">
+
+        <!-- Warnings / alerts -->
+        <div id="warnings-container"></div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Extracted Information</h3>
+            <div class="flex gap-3">
+              <button id="upload-another-btn" class="btn btn-outline btn-sm">
+                ⬆️ Upload Another
+              </button>
+              <a id="view-in-records-btn" class="btn btn-primary btn-sm" href="#">
+                View in Records →
+              </a>
+            </div>
+          </div>
+
+          <div class="card-body">
+
+            <!-- Confidence bar -->
+            <div class="confidence-section">
+              <div class="confidence-label">
+                <span>OCR Confidence</span>
+                <span id="confidence-pct">—</span>
+              </div>
+              <div class="confidence-bar-track">
+                <div id="confidence-fill" class="confidence-bar-fill" style="width:0%"></div>
+              </div>
+            </div>
+
+            <!-- Image + fields grid -->
+            <div class="results-grid mt-4">
+
+              <!-- Left: Image -->
+              <div class="result-image-panel">
+                <img id="result-image" src="" alt="Uploaded NID card">
+              </div>
+
+              <!-- Right: Fields -->
+              <div>
+                <div class="field-grid" id="field-grid">
+
+                  <div class="field-card">
+                    <div class="field-label">🇧🇩 Name (Bangla)</div>
+                    <div class="field-value" id="f-name-bangla">—</div>
+                  </div>
+
+                  <div class="field-card">
+                    <div class="field-label">🔤 Name (English)</div>
+                    <div class="field-value" id="f-name-english">—</div>
+                  </div>
+
+                  <div class="field-card">
+                    <div class="field-label">📅 Date of Birth</div>
+                    <div class="field-value" id="f-date-of-birth">—</div>
+                  </div>
+
+                  <div class="field-card">
+                    <div class="field-label">🪪 NID Number</div>
+                    <div class="field-value" id="f-nid-number" style="font-family:monospace;font-size:1.05rem;letter-spacing:.06em">—</div>
+                  </div>
+
+                  <div class="field-card">
+                    <div class="field-label">🩸 Blood Group</div>
+                    <div class="field-value" id="f-blood-group">—</div>
+                  </div>
+
+                  <div class="field-card">
+                    <div class="field-label">⚙️ OCR Engine / Time</div>
+                    <div class="field-value" id="f-ocr-meta">—</div>
+                  </div>
+
+                  <div class="field-card">
+                    <div class="field-label">👨 Father's Name</div>
+                    <div class="field-value" id="f-father-name">—</div>
+                  </div>
+
+                  <div class="field-card">
+                    <div class="field-label">👩 Mother's Name</div>
+                    <div class="field-value" id="f-mother-name">—</div>
+                  </div>
+
+                  <div class="field-card full-width">
+                    <div class="field-label">📍 Address</div>
+                    <div class="field-value" id="f-address" style="white-space:pre-line">—</div>
+                  </div>
+
+                </div><!-- /field-grid -->
+              </div>
+
+            </div><!-- /results-grid -->
+          </div><!-- /card-body -->
+        </div><!-- /card -->
+      </div><!-- /results-section -->
+
+    </main>
+  </div><!-- /main-area -->
+</div><!-- /app-layout -->
+
+<!-- Toast container -->
+<div id="toast-container" class="toast-container"></div>
+
+<!-- Shared scripts -->
+<script src="app.js"></script>
+
+<!-- Page-specific script -->
+<script>
+(function () {
+  'use strict';
+
+  /* ---- DOM refs ---- */
+  const zone         = document.getElementById('upload-zone');
+  const fileInput    = document.getElementById('file-input');
+  const previewBox   = document.getElementById('preview-container');
+  const previewThumb = document.getElementById('preview-thumb');
+  const fileNameEl   = document.getElementById('file-name-display');
+  const fileSizeEl   = document.getElementById('file-size-display');
+  const removeBtn    = document.getElementById('remove-file-btn');
+  const inlineErr    = document.getElementById('upload-inline-error');
+  const errMsg       = document.getElementById('upload-error-msg');
+  const processBtn   = document.getElementById('process-btn');
+  const btnText      = document.getElementById('btn-text');
+  const btnIcon      = document.getElementById('btn-icon');
+  const loadingState = document.getElementById('loading-state');
+  const resultsSection = document.getElementById('results-section');
+  const warningsBox  = document.getElementById('warnings-container');
+  const anotherBtn   = document.getElementById('upload-another-btn');
+  const viewBtn      = document.getElementById('view-in-records-btn');
+
+  let selectedFile   = null;
+  let uploading      = false;
+
+  /* ---- Warn before leaving while uploading ---- */
+  window.addEventListener('beforeunload', (e) => {
+    if (uploading) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  /* ---- Upload zone interactions ---- */
+  zone.addEventListener('click',   () => fileInput.click());
+  zone.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+  zone.addEventListener('dragover',  (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', ()  => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer?.files?.[0];
+    if (file) handleFile(file);
+  });
+
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files?.[0]) handleFile(fileInput.files[0]);
+  });
+
+  removeBtn.addEventListener('click', resetUpload);
+
+  /* ---- File handling ---- */
+  function handleFile(file) {
+    clearError();
+
+    /* Client-side validation */
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    if (['pdf'].includes(ext) || file.type === 'application/pdf') {
+      return showErr('PDF files are not supported. Please upload a photo (JPEG or PNG).');
+    }
+    if (['heic','heif'].includes(ext) || file.type === 'image/heic') {
+      return showErr('HEIC format not supported. Convert to JPEG first.');
+    }
+    if (!['jpg','jpeg','png','webp'].includes(ext)) {
+      return showErr('Invalid file type. Accepted: JPG, JPEG, PNG, WEBP.');
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return showErr(`File too large (${formatBytes(file.size)}). Maximum is 10 MB.`);
+    }
+
+    selectedFile = file;
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = formatBytes(file.size);
+    previewBox.classList.remove('hidden');
+    processBtn.disabled = false;
+
+    /* Show thumbnail */
+    const reader = new FileReader();
+    reader.onload = (e) => { previewThumb.src = e.target.result; };
+    reader.readAsDataURL(file);
+  }
+
+  function resetUpload() {
+    selectedFile = null;
+    fileInput.value = '';
+    previewThumb.src = '';
+    previewBox.classList.add('hidden');
+    processBtn.disabled = true;
+    clearError();
+    resultsSection.classList.add('hidden');
+    loadingState.classList.add('hidden');
+  }
+
+  anotherBtn.addEventListener('click', resetUpload);
+
+  /* ---- Inline error helpers ---- */
+  function showErr(msg) {
+    errMsg.textContent = msg;
+    inlineErr.classList.remove('hidden');
+    processBtn.disabled = true;
+  }
+  function clearError() { inlineErr.classList.add('hidden'); errMsg.textContent = ''; }
+
+  /* ---- Process / upload ---- */
+  processBtn.addEventListener('click', async () => {
+    if (!selectedFile || uploading) return;
+
+    uploading = true;
+    processBtn.disabled = true;
+    btnIcon.textContent = '';
+    btnText.textContent = 'Processing…';
+
+    /* Show spinner card, hide results */
+    loadingState.classList.remove('hidden');
+    resultsSection.classList.add('hidden');
+    warningsBox.innerHTML = '';
+
+    try {
+      const response = await api.uploadImage(selectedFile);
+
+      loadingState.classList.add('hidden');
+
+      if (!response.success && !response.data) {
+        showToast(response.error || 'Upload failed.', 'error');
+        return;
+      }
+
+      renderResults(response);
+      resultsSection.classList.remove('hidden');
+
+      if (response.success) {
+        showToast('NID card processed successfully!', 'success');
+      } else {
+        showToast('Upload saved but OCR failed — check the fields below.', 'warning');
+      }
+
+    } catch (err) {
+      loadingState.classList.add('hidden');
+      const msg = apiErrorMsg(err);
+      showToast(msg, 'error');
+
+      /* Show modal for critical server errors */
+      if (!err.status || err.status >= 500) {
+        showModal('OCR Failed', `
+          <div class="alert alert-error">
+            <span class="alert-icon">⚠️</span>
+            <div>
+              <strong>OCR processing error.</strong><br>
+              ${escHtml(msg)}<br>
+              Please try again with a clearer, brighter photo.
+            </div>
+          </div>
+          <p class="text-sm text-muted mt-3">Tips for better results:</p>
+          <ul class="text-sm text-muted mt-1" style="padding-left:1.25rem;line-height:2">
+            <li>Ensure the card is fully in frame</li>
+            <li>Use good lighting — no shadows or glare</li>
+            <li>Hold the camera steady — avoid blur</li>
+            <li>Upload at least 1 MP resolution</li>
+          </ul>
+        `, `<button class="btn btn-primary" onclick="closeModal()">Got it</button>`);
+      }
+    } finally {
+      uploading = false;
+      processBtn.disabled = false;
+      btnIcon.textContent = '⚙️';
+      btnText.textContent  = 'Process NID Card';
+    }
+  });
+
+  /* ---- Render OCR results ---- */
+  function renderResults(response) {
+    const d  = response.data || {};
+    const f  = d;
+
+    /* Image */
+    const imgEl = document.getElementById('result-image');
+    if (d.image_url) {
+      imgEl.src = d.image_url;
+    } else if (selectedFile) {
+      imgEl.src = URL.createObjectURL(selectedFile);
+    }
+
+    /* Link to records */
+    if (d.id) viewBtn.href = `records.html#record-${d.id}`;
+
+    /* Fields — show "—" for empty values */
+    function setField(id, value) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const empty = !value || value.trim() === '';
+      el.textContent = empty ? '—' : value;
+      el.classList.toggle('empty', empty);
+    }
+
+    setField('f-name-bangla',  f.name_bangla);
+    setField('f-name-english', f.name_english);
+    setField('f-date-of-birth',f.date_of_birth);
+    setField('f-nid-number',   f.nid_number);
+    setField('f-father-name',  f.father_name_bangla);
+    setField('f-mother-name',  f.mother_name_bangla);
+    setField('f-address',      f.address_bangla);
+
+    /* Blood group badge */
+    const bgEl = document.getElementById('f-blood-group');
+    if (f.blood_group) {
+      bgEl.innerHTML = `<span class="badge badge-blood ${bloodGroupClass(f.blood_group)}">${escHtml(f.blood_group)}</span>`;
+    } else {
+      bgEl.textContent = '—';
+      bgEl.classList.add('empty');
+    }
+
+    /* OCR meta */
+    const metaEl = document.getElementById('f-ocr-meta');
+    const eng    = d.ocr_engine || '—';
+    const ms     = d.processing_time_ms ? d.processing_time_ms + ' ms' : '—';
+    metaEl.textContent = `${eng} · ${ms}`;
+
+    /* Confidence bar */
+    const conf    = d.ocr_confidence;
+    const confPct = document.getElementById('confidence-pct');
+    const fill    = document.getElementById('confidence-fill');
+
+    confPct.textContent = formatConfidence(conf);
+
+    const pct  = conf != null ? Math.round(conf * 100) : 0;
+    const cls  = confidenceClass(conf);
+    fill.style.width = '0%';
+    fill.className   = `confidence-bar-fill ${cls}`;
+    // Animate after brief delay
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      fill.style.width = pct + '%';
+    }));
+
+    /* Warnings */
+    warningsBox.innerHTML = '';
+
+    if (conf != null && conf < 0.40) {
+      warningsBox.insertAdjacentHTML('beforeend', `
+        <div class="alert alert-error" role="alert">
+          <span class="alert-icon">⚠️</span>
+          <div><strong>Very low confidence (${formatConfidence(conf)}).</strong>
+          All fields should be verified manually. Tips: use better lighting,
+          hold camera steady, and ensure card fills the frame.</div>
+        </div>
+      `);
+    } else if (conf != null && conf < 0.60) {
+      warningsBox.insertAdjacentHTML('beforeend', `
+        <div class="alert alert-warning" role="alert">
+          <span class="alert-icon">⚠️</span>
+          <div><strong>Low confidence — please verify fields.</strong></div>
+        </div>
+      `);
+    }
+
+    /* API warnings */
+    const apiWarnings = response.warnings || [];
+    apiWarnings.forEach(w => {
+      const isDuplicate = w.toLowerCase().includes('duplicate');
+      warningsBox.insertAdjacentHTML('beforeend', `
+        <div class="alert ${isDuplicate ? 'alert-warning' : 'alert-info'}" role="alert">
+          <span class="alert-icon">${isDuplicate ? '⚠️' : 'ℹ️'}</span>
+          <div>${escHtml(w)}</div>
+        </div>
+      `);
+    });
+  }
+
+})();
+</script>
+
+</body>
+</html>
